@@ -195,21 +195,24 @@ def app(df):
             # Normalize groups
 
             if options[0] in selected_options:
+                try:
 
-                st.header('**Normalized Groups**')
+                    st.header('**Normalized Groups**')
 
-                normalized = curate.normalize_groups(df)
+                    normalized = curate.normalize_groups(df)
 
-                #Generate Image from original SMILES
-                PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol=name_smiles,
-                molCol='Original', includeFingerprints=False)
-                #Generate Image from normalized SMILES
-                PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol="normalized_smiles",
-                molCol='Normalized', includeFingerprints=False)
-                # Filter only columns containing images
-                normalized_fig = normalized.filter(items=['Original', "Normalized"])
-                    # Show table for comparing
-                st.write(normalized_fig.to_html(escape=False), unsafe_allow_html=True)
+                    #Generate Image from original SMILES
+                    PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol=name_smiles,
+                    molCol='Original', includeFingerprints=False)
+                    #Generate Image from normalized SMILES
+                    PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol="normalized_smiles",
+                    molCol='Normalized', includeFingerprints=False)
+                    # Filter only columns containing images
+                    normalized_fig = normalized.filter(items=['Original', "Normalized"])
+                        # Show table for comparing
+                    st.write(normalized_fig.to_html(escape=False), unsafe_allow_html=True)
+                except:
+                    print("failed to normalize.")
 
             else:
                 normalized = curate.normalize_groups(df)
@@ -217,22 +220,24 @@ def app(df):
             #----------------------------------------------------------------------------------#
             # Neutralize when possible
             if options[1] in selected_options:
-
-                st.header('**Neutralized Groups**')
-                #if options[0] in selected_options:
-                neutralized = curate.neutralize(normalized)
-                # else:
-                #     neutralized=neutralize(df)
-                #Generate Image from normalized SMILES
-                PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="normalized_smiles",
-                molCol="Normalized", includeFingerprints=False)
-                #Generate Image from Neutralized SMILES
-                PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="neutralized_smiles",
-                molCol="Neutralized", includeFingerprints=False)
-                # Filter only columns containing images
-                neutralized_fig = neutralized.filter(items=["Normalized", "Neutralized"])
-                # Show table for comparing
-                st.write(neutralized_fig.to_html(escape=False), unsafe_allow_html=True)
+                try:
+                    st.header('**Neutralized Groups**')
+                    #if options[0] in selected_options:
+                    neutralized = curate.neutralize(normalized)
+                    # else:
+                    #     neutralized=neutralize(df)
+                    #Generate Image from normalized SMILES
+                    PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="normalized_smiles",
+                    molCol="Normalized", includeFingerprints=False)
+                    #Generate Image from Neutralized SMILES
+                    PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="neutralized_smiles",
+                    molCol="Neutralized", includeFingerprints=False)
+                    # Filter only columns containing images
+                    neutralized_fig = neutralized.filter(items=["Normalized", "Neutralized"])
+                    # Show table for comparing
+                    st.write(neutralized_fig.to_html(escape=False), unsafe_allow_html=True)
+                except:
+                    print("Neutralization failed.")
 
             else:
                 neutralized = curate.neutralize(normalized)
@@ -241,20 +246,23 @@ def app(df):
             # Remove mixtures and salts
             if options[2] in selected_options:
 
-                st.header('**Remove mixtures**')
-                # if options[1] in selected_options:
-                no_mixture = curate.no_mixture(neutralized)
-            
-                #Generate Image from Neutralized SMILES
-                PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="neutralized_smiles",
-                molCol="Neutralized", includeFingerprints=False)
-                #Generate Image from No_mixture SMILES
-                PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="no_mixture_smiles",
-                molCol="No_mixture", includeFingerprints=False)
-                # Filter only columns containing images
-                no_mixture_fig = no_mixture.filter(items=["Neutralized", "No_mixture"])
-                # Show table for comparing
-                st.write(no_mixture_fig.to_html(escape=False), unsafe_allow_html=True)
+                try:
+                    st.header('**Remove mixtures**')
+                    # if options[1] in selected_options:
+                    no_mixture = curate.no_mixture(neutralized)
+                
+                    #Generate Image from Neutralized SMILES
+                    PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="neutralized_smiles",
+                    molCol="Neutralized", includeFingerprints=False)
+                    #Generate Image from No_mixture SMILES
+                    PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="no_mixture_smiles",
+                    molCol="No_mixture", includeFingerprints=False)
+                    # Filter only columns containing images
+                    no_mixture_fig = no_mixture.filter(items=["Neutralized", "No_mixture"])
+                    # Show table for comparing
+                    st.write(no_mixture_fig.to_html(escape=False), unsafe_allow_html=True)
+                except:
+                    print("No mixtures and salts")
             else:
                 no_mixture = curate.no_mixture(neutralized)
 
@@ -263,19 +271,22 @@ def app(df):
             #Generate canonical tautomers
             if options[3] in selected_options:
 
-                st.header('**Generate canonical tautomers**')
-                # if options[2] in selected_options:
-                canonical_tautomer = curate.canonical_tautomer(no_mixture)
-                #Generate Image from Neutralized SMILES
-                PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="no_mixture_smiles",
-                molCol="No_mixture", includeFingerprints=False)
-                #Generate Image from No_mixture SMILES
-                PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="canonical_tautomer",
-                molCol="Canonical_tautomer", includeFingerprints=False)
-                # Filter only columns containing images
-                canonical_tautomer_fig = canonical_tautomer.filter(items=["No_mixture", "Canonical_tautomer"])
-                # Show table for comparing
-                st.write(canonical_tautomer_fig.to_html(escape=False), unsafe_allow_html=True)
+                try:
+                    st.header('**Generate canonical tautomers**')
+                    # if options[2] in selected_options:
+                    canonical_tautomer = curate.canonical_tautomer(no_mixture)
+                    #Generate Image from Neutralized SMILES
+                    PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="no_mixture_smiles",
+                    molCol="No_mixture", includeFingerprints=False)
+                    #Generate Image from No_mixture SMILES
+                    PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="canonical_tautomer",
+                    molCol="Canonical_tautomer", includeFingerprints=False)
+                    # Filter only columns containing images
+                    canonical_tautomer_fig = canonical_tautomer.filter(items=["No_mixture", "Canonical_tautomer"])
+                    # Show table for comparing
+                    st.write(canonical_tautomer_fig.to_html(escape=False), unsafe_allow_html=True)
+                except:
+                    print("Failed to generate tautomers")
 
             else:
                 canonical_tautomer = curate.canonical_tautomer(no_mixture)
@@ -288,10 +299,14 @@ def app(df):
             filedownload(canonical_tautomer,"Standardized with Duplicates")
         
         #--------------------------- Removal of duplicates------------------------------#
-            # Generate InchiKey
-            inchikey = curate.smi_to_inchikey(canonical_tautomer)
+            
+            try:
+                # Generate InchiKey
+                inchikey = curate.smi_to_inchikey(canonical_tautomer)
 
-            no_dup = inchikey.drop_duplicates(subset='inchikey', keep="first")
+                no_dup = inchikey.drop_duplicates(subset='inchikey', keep="first")
+            except:
+                print("No duplicates found!")
 
 
         #--------------------------- Print dataframe without duplicates------------------------------#

@@ -191,16 +191,22 @@ def app(df,s_state):
                 cc.img_AgGrid(df,title="Final Dataset",key="final_dataset",mol_col=curate.curated_smiles)
                 filedownload(df,"Final Dataset")
             if radio == data_type[0]:
-                continuous = utils.Continuous_Duplicate_Remover(standardized,curate.curated_smiles,name_activity,False,False)
-                continuous,dups = continuous.remove_duplicates()
-                s_state[curated_key] = continuous
-                duplicate_analysis(continuous,dups)
+                try:
+                    continuous = utils.Continuous_Duplicate_Remover(standardized,curate.curated_smiles,name_activity,False,False)
+                    continuous,dups = continuous.remove_duplicates()
+                    s_state[curated_key] = continuous
+                    duplicate_analysis(continuous,dups)
+                except:
+                    print("No duplicates found.")
 
             elif radio == data_type[1]:
-                categorical = utils.Classification_Duplicate_Remover(standardized,curate.curated_smiles,name_activity)
-                categorical,dups = categorical.remove_duplicates()
-                s_state[curated_key] = categorical
-                duplicate_analysis(categorical,dups)
+                try:
+                    categorical = utils.Classification_Duplicate_Remover(standardized,curate.curated_smiles,name_activity)
+                    categorical,dups = categorical.remove_duplicates()
+                    s_state[curated_key] = categorical
+                    duplicate_analysis(categorical,dups)
+                except:
+                    print("No duplicates found.")
 
     ########################################################################################################################################
     # Sidebar - Upload File and select columns

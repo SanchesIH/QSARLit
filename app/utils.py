@@ -205,56 +205,61 @@ class Custom_Components:
         st.header(f"**{title}**")
         AgGrid(df, width = 800,height=500 ,gridOptions = gd, key=f"IMG_{key}" ,allow_unsafe_jscode = True, columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
 
-    def persist_df_through_deletion(self,updated_df_key, col_to_delete_key) -> pd.DataFrame:
-            # drop column from dataframe
+    def persist_df_through_deletion(self, updated_df_key, col_to_delete_key) -> pd.DataFrame:
             s_state = st.session_state
-            delete_col = s_state[col_to_delete_key]
+            delete_col = col_to_delete_key
             if delete_col in s_state[updated_df_key].columns:
                 deleted = s_state[updated_df_key].drop(columns=[delete_col])
-                #if "input" in s_state:
-                    #s_state.pop("input")
-                    #st.header("**Updated input data**") 
-                #st.info("Deleted col "+delete_col)
-                self.AgGrid(df=deleted,Table_title=f"Input without deleted column: {delete_col}")
+                s_state[updated_df_key] = deleted  # Update the session state with the deleted dataframe
+                st.write(f"Input without deleted column: {delete_col}")
                 return deleted
-
             else:
-                st.warning("Column previously deleted. Select another column.")
-    
-    def delete_column(self,df,key = "") -> pd.DataFrame:
-        
+                st.warning("Column not found in dataframe. Select another column.")
+                return s_state[updated_df_key]
+
+    def delete_column(self, df, key="") -> pd.DataFrame:
         if df is not None:
-            key = self.update_df(key)
+            key = self.update_df(key)  # Assuming you have a method to update key
             st.session_state[key] = df
             st.write("Delete columns unrelated to descriptors outcome values")
-            with st.form(key = "Form-"+self.delete_col_key(key),clear_on_submit=False):
-                index = st.session_state[key].columns.tolist().index(
-                    st.session_state[key].columns.tolist()[0]
+
+            # Form for column selection and actions
+            with st.form(key="Form-" + self.delete_col_key(key), clear_on_submit=False):
+                selected_cols = st.multiselect(
+                    "Select columns to delete",
+                    options=st.session_state[key].columns.tolist(),
+                    default=[],
+                    key="delete_cols_" + key
                 )
-                st.selectbox(
-                    "Select columns to delete", options=st.session_state[key].columns, index=index, key=self.delete_col_key(key)
-                )
-                col1, col_f ,col2 = st.columns([2,2,0.92],gap="large")
+                col1, col_f, col2 = st.columns([2, 2, 0.92], gap="large")
+
                 with col1:
                     delete = st.form_submit_button(label="Delete")
                 with col_f:
                     undo = st.form_submit_button(label="Undo")
                 with col2:
                     proceed = st.form_submit_button("Proceed")
+
             if delete:
-                deleted = self.persist_df_through_deletion(key,self.delete_col_key(key))
-                st.session_state["has_run"] = deleted
-                return deleted
+                for col in selected_cols:
+                    df = self.persist_df_through_deletion(key, col)
+                st.session_state["has_run"] = df
+                return df
+
             if undo:
                 st.session_state[key] = df
                 st.session_state["has_run"] = None
-                self.AgGrid(df,Table_title="Input")
+                st.write("Input dataframe:")
+                st.dataframe(df)
                 return df
+
             if proceed and st.session_state["has_run"] is not None:
                 return st.session_state["has_run"]
+
             if proceed and st.session_state["has_run"] is None:
                 return st.session_state[key]
-                
+
+        
     def ReadPictureFiles(self,wch_fl) -> base64:
         try:
             return base64.b64encode(open(wch_fl, 'rb').read()).decode()
