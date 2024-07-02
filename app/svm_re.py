@@ -13,47 +13,31 @@
 # Importing packages
 ########################################################################################################################################
 
-from st_aggrid import AgGrid
 import streamlit as st
-
 import base64
-import functools
-from io import BytesIO
 import warnings
 warnings.filterwarnings(action='ignore')
 
 from IPython.core.display import display, HTML
 display(HTML("<style>.container { width:90% !important; }</style>"))
 
-import numpy as np
-from numpy import sqrt
-from numpy import argmax
-
 import pandas as pd
-
-import matplotlib.pyplot as plt
-
-import os
 
 from sklearn.svm import SVR
 from sklearn.model_selection import cross_validate
-from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn import metrics
-from sklearn.metrics import accuracy_score, cohen_kappa_score, matthews_corrcoef, roc_curve, roc_auc_score, make_scorer
-from sklearn.metrics import balanced_accuracy_score, recall_score, confusion_matrix
+from sklearn.metrics import make_scorer
 import pickle
-from sklearn.calibration import calibration_curve
 
 from imblearn.metrics import geometric_mean_score
 
-import multiprocessing
 
 from skopt import BayesSearchCV
 import utils
 import plotly.graph_objects as go
 
-def app(df, s_state):
+def app(df):
     ########################################################################################################################################
     # Functions
     ########################################################################################################################################

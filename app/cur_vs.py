@@ -23,15 +23,13 @@ warnings.filterwarnings(action='ignore')
 from IPython.core.display import display, HTML
 display(HTML("<style>.container { width:90% !important; }</style>"))
 
-import pandas as pd
 
 from rdkit.Chem import PandasTools
 from rdkit import Chem
-from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from st_aggrid import AgGrid
 import utils
-def app(df,s_state):
+def app(df):
 
     ########################################################################################################################################
     # Functions

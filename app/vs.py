@@ -31,12 +31,10 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 
 import pickle
 
-from rdkit.Chem.Draw import DrawingOptions
 
 import utils
 ########################################################################################################################################

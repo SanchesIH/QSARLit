@@ -1,21 +1,12 @@
-from dis import disco
-from os import remove
 import os
 #from tkinter.tix import InputOnly
-from unicodedata import normalize
-from xmlrpc.client import Boolean
 from rdkit.Chem import PandasTools
-from random import randint
 from rdkit import Chem, DataStructs
 from rdkit.Chem import MACCSkeys,Draw
-from rdkit.Chem import AllChem, Descriptors
+from rdkit.Chem import AllChem
 from chembl_structure_pipeline import standardizer
-from rdkit.Chem.MolStandardize.metal import MetalDisconnector
 from rdkit.Chem.SaltRemover import SaltRemover
 from rdkit.Chem import inchi as rd_inchi
-from json import JSONEncoder
-import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
 import numpy as np
 import warnings; warnings.simplefilter('ignore')
@@ -29,9 +20,7 @@ import pandas as pd
 from st_aggrid import GridOptionsBuilder, AgGrid, ColumnsAutoSizeMode
 from st_aggrid.shared import JsCode
 import base64
-import st_on_hover_tabs as st_oh
 from pkgutil import iter_modules
-from io import BytesIO
 from PIL import Image
 
 st.session_state["has_run"] = None
