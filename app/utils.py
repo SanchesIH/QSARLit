@@ -549,6 +549,19 @@ class Curation:
     def __init__(self,smiles):
         self.curated_smiles = f'curated_{smiles}'
         self.smiles = smiles
+
+
+    def smi_to_inchikey(self, dataframe, smiles_col):
+        inchikeys = []
+        for smi in dataframe[smiles_col]:
+            mol = Chem.MolFromSmiles(smi)
+            if mol is not None:
+                inchikey = Chem.inchi.InchiToInchiKey(Chem.inchi.MolToInchi(mol))
+                inchikeys.append(inchikey)
+            else:
+                inchikeys.append(None)
+        dataframe['inchikey'] = inchikeys
+        return dataframe
     
     def is_smiles_passed(self,smiles):
         if self.smiles is not None or smiles is None: 
