@@ -10,7 +10,6 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import MACCSkeys,Draw
 from rdkit.Chem import AllChem, Descriptors
 from chembl_structure_pipeline import standardizer
-from rdkit.Chem.MolStandardize.metal import MetalDisconnector
 from rdkit.Chem.SaltRemover import SaltRemover
 from rdkit.Chem import inchi as rd_inchi
 from json import JSONEncoder
@@ -29,7 +28,6 @@ import pandas as pd
 from st_aggrid import GridOptionsBuilder, AgGrid, ColumnsAutoSizeMode
 from st_aggrid.shared import JsCode
 import base64
-import st_on_hover_tabs as st_oh
 from pkgutil import iter_modules
 from io import BytesIO
 from PIL import Image
