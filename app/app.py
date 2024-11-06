@@ -2,6 +2,7 @@ import streamlit as st
 from multiapp import MultiApp
 import home, cur, cur_vs, desc, rf, svm, lgbm, vs, maps, rf_re, svm_re, lgbm_re  # import your app modules here
 import utils
+import pandas as pd
 
 # Instantiate the MultiApp object
 app = MultiApp()

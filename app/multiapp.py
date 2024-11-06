@@ -1,6 +1,7 @@
 """Frameworks for running multiple Streamlit applications as a single app.
 """
 import streamlit as st
+from st_on_hover_tabs import on_hover_tabs
 
 class MultiApp:
     """Framework for combining multiple streamlit applications.

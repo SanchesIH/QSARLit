@@ -3,6 +3,8 @@
 import rdkit
 from rdkit import Chem, DataStructs
 from rdkit import Chem
+from rdkit.Chem import AllChem, Descriptors
+from rdkit.Chem import PandasTools
 from rdkit.Chem import MACCSkeys
 
 
@@ -11,20 +13,34 @@ from numpy import sqrt
 from numpy import argmax
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 import pandas as pd
+from pandas import DataFrame
+
 import lightgbm as lgb
 
 from sklearn.model_selection import cross_validate
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.svm import SVR
+from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
+from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 from sklearn.metrics import accuracy_score, cohen_kappa_score, matthews_corrcoef, roc_curve, precision_recall_curve, roc_auc_score, make_scorer
-from sklearn.metrics import f1_score, balanced_accuracy_score, recall_score, confusion_matrix
-from sklearn.calibration import calibration_curve
+from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score, recall_score, confusion_matrix
+from sklearn.metrics import auc as mauc
+import joblib
+from sklearn.model_selection import cross_val_score
+from sklearn.datasets import load_digits
+from sklearn.calibration import calibration_curve, CalibratedClassifierCV
+from sklearn.decomposition import PCA
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_recall_curve
+from sklearn.model_selection import cross_val_predict
 
 from imblearn.metrics import geometric_mean_score
 

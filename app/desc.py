@@ -17,6 +17,9 @@ from st_aggrid import AgGrid
 import streamlit as st
 
 import base64
+import functools
+from io import BytesIO
+import os
 import warnings
 warnings.filterwarnings(action='ignore')
 
@@ -25,11 +28,18 @@ display(HTML("<style>.container { width:90% !important; }</style>"))
 
 from rdkit import Chem, DataStructs
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, Descriptors
+from rdkit.Chem import PandasTools
 from rdkit.Chem import MACCSkeys
 
 import numpy as np
+from numpy import sqrt
+from numpy import argmax
+
+import pandas as pd
+from pandas import DataFrame
 import utils
+from sklearn.preprocessing import StandardScaler
 
 def app(df, s_state):
     cc = utils.Custom_Components()

@@ -22,8 +22,13 @@ warnings.filterwarnings(action='ignore')
 from IPython.core.display import display, HTML
 display(HTML("<style>.container { width:90% !important; }</style>"))
 
+import pandas as pd
+
+from rdkit.Chem import PandasTools
+from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit import Chem
 import utils
+from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from st_aggrid import AgGrid
 def app(df,s_state):
@@ -191,22 +196,16 @@ def app(df,s_state):
                 cc.img_AgGrid(df,title="Final Dataset",key="final_dataset",mol_col=curate.curated_smiles)
                 filedownload(df,"Final Dataset")
             if radio == data_type[0]:
-                try:
-                    continuous = utils.Continuous_Duplicate_Remover(standardized,curate.curated_smiles,name_activity,False,False)
-                    continuous,dups = continuous.remove_duplicates()
-                    s_state[curated_key] = continuous
-                    duplicate_analysis(continuous,dups)
-                except:
-                    print("No duplicates found.")
+                continuous = utils.Continuous_Duplicate_Remover(standardized,curate.curated_smiles,name_activity,False,False)
+                continuous,dups = continuous.remove_duplicates()
+                s_state[curated_key] = continuous
+                duplicate_analysis(continuous,dups)
 
             elif radio == data_type[1]:
-                try:
-                    categorical = utils.Classification_Duplicate_Remover(standardized,curate.curated_smiles,name_activity)
-                    categorical,dups = categorical.remove_duplicates()
-                    s_state[curated_key] = categorical
-                    duplicate_analysis(categorical,dups)
-                except:
-                    print("No duplicates found.")
+                categorical = utils.Classification_Duplicate_Remover(standardized,curate.curated_smiles,name_activity)
+                categorical,dups = categorical.remove_duplicates()
+                s_state[curated_key] = categorical
+                duplicate_analysis(categorical,dups)
 
     ########################################################################################################################################
     # Sidebar - Upload File and select columns

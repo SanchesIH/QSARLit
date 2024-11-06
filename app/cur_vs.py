@@ -1,3 +1,4 @@
+
 ########################################################################################################################################
 # Credits
 ########################################################################################################################################
@@ -146,51 +147,6 @@ def app(df,s_state):
     if df is not None:
         # Read CSV data
         #df = pd.read_csv(uploaded_file, sep=',')
-        curated_key = utils.Commons().CURATED_DF_KEY
-    #custom = cur.Custom_Components()
-    ########################################################################################################################################
-    # Functions
-    ########################################################################################################################################
-        cc = utils.Custom_Components()
-        def persist_dataframe(updated_df,col_to_delete):
-                # drop column from dataframe
-                delete_col = st.session_state[col_to_delete]
-
-                if delete_col in st.session_state[updated_df]:
-                    st.session_state[updated_df] = st.session_state[updated_df].drop(columns=[delete_col])
-                else:
-                    st.sidebar.warning("Column previously deleted. Select another column.")
-                with st.container():
-                    st.header("**Updated input data**") 
-                    AgGrid(st.session_state[updated_df])
-                    st.header('**Original input data**')
-                    AgGrid(df)
-
-        def filedownload(df,data):
-                csv = df.to_csv(index=False)
-                b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
-                st.header(f"**Download {data} data**")
-                href = f'<a href="data:file/csv;base64,{b64}" download="{data}_data.csv">Download CSV File</a>'
-                st.markdown(href, unsafe_allow_html=True)
-        
-        def remove_invalid(df,smiles_col):
-            for i in df.index:
-                try:
-                    smiles = df[smiles_col][i]
-                    m = Chem.MolFromSmiles(smiles)
-                except:
-                    df.drop(i, inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            return df
-        # def smi_to_inchikey(df):
-        #     inchi = []
-        #     for smi in df["canonical_tautomer"]:
-        #         m = Chem.MolFromSmiles(smi,sanitize=True,)
-        #         m2 = Chem.inchi.MolToInchiKey(m)
-        #         inchi.append(m2)
-        #     inchikey = pd.DataFrame(inchi, columns=["inchikey"])
-        #     df_inchikey = df.join(inchikey)
-        #     return df_inchikey
 
         st.sidebar.write('---')
 
@@ -216,8 +172,7 @@ def app(df,s_state):
         options=['Normalization',
                 'Neutralization',
                 'Mixture_removal',
-                'Canonical_tautomers',
-                'Chembl_Standardization',]
+                'Canonical_tautomers']
         if _all:
             selected_options = container.multiselect("Select one or more options:", options, options)
         else:
@@ -232,92 +187,125 @@ def app(df,s_state):
 
             #---------------------------------------------------------------------------------#
             # Remove invalid smiles
-            remove_invalid(df,name_smiles)
-            df[name_smiles] = curate.smiles_preparator(df[name_smiles])
-            st.header("1. Invalid SMILES removed")
-            cc.AgGrid(df,key = "invalid_smiles_removed")
+            remove_invalid(df)
+
             #---------------------------------------------------------------------------------#
             # Remove compounds with metals
-            df = curate.remove_Salt_From_DF(df, name_smiles)
-            df = curate.remove_metal(df, name_smiles)
-            normalized = curate.normalize_groups(df)
-            neutralized,_ = curate.neutralize(normalized,curate.curated_smiles)
-            no_mixture,only_mixture = curate.remove_mixture(neutralized,curate.curated_smiles)
-            canonical_tautomer,_ = curate.canonical_tautomer(no_mixture,curate.curated_smiles)
-            standardized,_= curate.standardise(canonical_tautomer,curate.curated_smiles)
+            curate.remove_metals(df)
+
             #---------------------------------------------------------------------------------#
             # Normalize groups
+
             if options[0] in selected_options:
-                cc.img_AgGrid(normalized,title="Normalized Groups",mol_col=name_smiles ,key="normalized_groups")        
+
+                st.header('**Normalized Groups**')
+
+                normalized = curate.normalize_groups(df)
+
+                #Generate Image from original SMILES
+                PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol=name_smiles,
+                molCol='Original', includeFingerprints=False)
+                #Generate Image from normalized SMILES
+                PandasTools.AddMoleculeColumnToFrame(normalized, smilesCol="normalized_smiles",
+                molCol='Normalized', includeFingerprints=False)
+                # Filter only columns containing images
+                normalized_fig = normalized.filter(items=['Original', "Normalized"])
+                    # Show table for comparing
+                st.write(normalized_fig.to_html(escape=False), unsafe_allow_html=True)
+
+            else:
+                normalized = curate.normalize_groups(df)
+                #redundante?
             #----------------------------------------------------------------------------------#
             # Neutralize when possible
             if options[1] in selected_options:
- 
-                #st.header('**Neutralized Groups**')
+
+                st.header('**Neutralized Groups**')
                 #if options[0] in selected_options:
-                cc.img_AgGrid(neutralized,title="Neutralized Groups",mol_col=curate.curated_smiles,key="neutralized_groups")
+                neutralized = curate.neutralize(normalized)
+                # else:
+                #     neutralized=neutralize(df)
+                #Generate Image from normalized SMILES
+                PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="normalized_smiles",
+                molCol="Normalized", includeFingerprints=False)
+                #Generate Image from Neutralized SMILES
+                PandasTools.AddMoleculeColumnToFrame(neutralized, smilesCol="neutralized_smiles",
+                molCol="Neutralized", includeFingerprints=False)
+                # Filter only columns containing images
+                neutralized_fig = neutralized.filter(items=["Normalized", "Neutralized"])
+                # Show table for comparing
+                st.write(neutralized_fig.to_html(escape=False), unsafe_allow_html=True)
+
+            else:
+                neutralized = curate.neutralize(normalized)
+
             #---------------------------------------------------------------------------------#
             # Remove mixtures and salts
             if options[2] in selected_options:
 
                 st.header('**Remove mixtures**')
                 # if options[1] in selected_options:
-                with st.container():
-                    #st.header("Mixture")
-                    if only_mixture=="No mixture":
-                        st.write("**No mixture found**")
-                    else:
-                        cc.img_AgGrid(only_mixture,title = "Mixture",mol_col=curate.curated_smiles,key="mixture")
-                    #st.header("No mixture")
-                    cc.img_AgGrid(no_mixture,title = "No mixture",mol_col=curate.curated_smiles,key="no_mixture")
+                no_mixture = curate.no_mixture(neutralized)
+            
+                #Generate Image from Neutralized SMILES
+                PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="neutralized_smiles",
+                molCol="Neutralized", includeFingerprints=False)
+                #Generate Image from No_mixture SMILES
+                PandasTools.AddMoleculeColumnToFrame(no_mixture, smilesCol="no_mixture_smiles",
+                molCol="No_mixture", includeFingerprints=False)
+                # Filter only columns containing images
+                no_mixture_fig = no_mixture.filter(items=["Neutralized", "No_mixture"])
+                # Show table for comparing
+                st.write(no_mixture_fig.to_html(escape=False), unsafe_allow_html=True)
+            else:
+                no_mixture = curate.no_mixture(neutralized)
+
             #---------------------------------------------------------------------------------#
+
             #Generate canonical tautomers
             if options[3] in selected_options:
-                cc.img_AgGrid(canonical_tautomer,title="Canonical tautomer",mol_col=curate.curated_smiles,key="canonical_tautomer")
-            #---------------------------------------------------------------------------------#
-            # Standardize using Chembl pipeline
-            if options[4] in selected_options:
-                cc.img_AgGrid(standardized,title="Chembl Standardization",mol_col=curate.curated_smiles,key="chembl_standardization")
-            
-            #standardized = curate.std_routine(canonical_tautomer,smiles = curate.curated_smiles)
 
-            
-        ########################################################################################################################################
-        # Download Standardized with Duplicates
-        ########################################################################################################################################
-                
-            # std_with_dup = canonical_tautomer.filter(items=["canonical_tautomer",])
-            # std_with_dup.rename(columns={"canonical_tautomer": "SMILES",},inplace=True)
-            # std_with_dup = std_with_dup.join(st.session_state.updated_df.drop(name_smiles, 1))
+                st.header('**Generate canonical tautomers**')
+                # if options[2] in selected_options:
+                canonical_tautomer = curate.canonical_tautomer(no_mixture)
+                #Generate Image from Neutralized SMILES
+                PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="no_mixture_smiles",
+                molCol="No_mixture", includeFingerprints=False)
+                #Generate Image from No_mixture SMILES
+                PandasTools.AddMoleculeColumnToFrame(canonical_tautomer, smilesCol="canonical_tautomer",
+                molCol="Canonical_tautomer", includeFingerprints=False)
+                # Filter only columns containing images
+                canonical_tautomer_fig = canonical_tautomer.filter(items=["No_mixture", "Canonical_tautomer"])
+                # Show table for comparing
+                st.write(canonical_tautomer_fig.to_html(escape=False), unsafe_allow_html=True)
 
-            filedownload(standardized,"Standardized with Duplicates")
+            else:
+                canonical_tautomer = curate.canonical_tautomer(no_mixture)
+
+        ########################################################################################################################################
+        # Analysis of duplicates
+        ########################################################################################################################################
+                    
+            
+            filedownload(canonical_tautomer,"Standardized with Duplicates")
         
         #--------------------------- Removal of duplicates------------------------------#
-
             # Generate InchiKey
-            inchikey = curate.smi_to_inchikey(canonical_tautomer, 'curated_Smiles')
+            inchikey = curate.smi_to_inchikey(canonical_tautomer)
 
             no_dup = inchikey.drop_duplicates(subset='inchikey', keep="first")
 
 
         #--------------------------- Print dataframe without duplicates------------------------------#
 
-           # Initialize session state if necessary
-            if 'updated_df' not in st.session_state:
-                st.session_state.updated_df = None  # Initialize with None or your default value
-
-            # Assuming 'no_dup' is your processed DataFrame
             st.header('**Duplicates removed**')
-            # Keep only curated smiles and outcome
-            no_dup = no_dup.filter(items=["canonical_tautomer"])
-            no_dup.rename(columns={"canonical_tautomer": "SMILES"}, inplace=True)
-
-            # Check if 'updated_df' exists in session state and join if available
-            if st.session_state.updated_df is not None:
-                no_dup = no_dup.join(st.session_state.updated_df.drop(name_smiles, axis=1))
-
+            #Keep only curated smiles and outcome
+            no_dup = no_dup.filter(items=["canonical_tautomer",])
+            no_dup.rename(columns={"canonical_tautomer": "SMILES",},inplace=True)
+            no_dup = no_dup.join(st.session_state.updated_df.drop(name_smiles, 1))
             # Display curated dataset
-            st.write(no_dup)
+            AgGrid(no_dup)
+
         ########################################################################################################################################
         # Data download
         ########################################################################################################################################

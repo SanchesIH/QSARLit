@@ -16,20 +16,26 @@
 import base64
 import functools
 from io import BytesIO
+import os
 import warnings
 
+from st_aggrid import AgGrid
 warnings.filterwarnings(action='ignore')
 
 from IPython.core.display import display, HTML
 display(HTML("<style>.container { width:90% !important; }</style>"))
+from matplotlib import cm
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 #get_ipython().run_line_magic('matplotlib', 'inline')
 import numpy as np
 import pandas as pd
 import rdkit
-from rdkit import Chem
-from rdkit.Chem import AllChem,  DataStructs, rdDepictor
-from rdkit.Chem.Draw import rdMolDraw2D, SimilarityMaps
+from rdkit import Chem, RDPaths
+from rdkit.Chem import AllChem,  DataStructs, Draw, rdBase, rdCoordGen, rdDepictor
+from rdkit.Chem.Draw import IPythonConsole, rdMolDraw2D, SimilarityMaps
+from rdkit.ML.Descriptors import MoleculeDescriptors
+from rdkit.Chem import MACCSkeys
 #print(f'RDKit: {rdBase.rdkitVersion}')
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
@@ -38,6 +44,10 @@ import seaborn as sns
 import streamlit as st
 
 import joblib
+from rdkit.Chem import MACCSkeys
+from skopt import BayesSearchCV
+
+import pickle
 
 sns.set_style("whitegrid")
 
