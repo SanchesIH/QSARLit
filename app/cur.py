@@ -25,7 +25,7 @@ display(HTML("<style>.container { width:90% !important; }</style>"))
 import pandas as pd
 
 from rdkit.Chem import PandasTools
-from rdkit.Chem.Draw import rdMolDraw2D
+#from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit import Chem
 import utils
 from rdkit.Chem.MolStandardize import rdMolStandardize
@@ -140,17 +140,6 @@ def app(df,s_state):
             canonical_tautomer,_ = curate.canonical_tautomer(no_mixture,curate.curated_smiles)
             standardized,_= curate.standardise(canonical_tautomer,curate.curated_smiles)
             #---------------------------------------------------------------------------------#
-            # Normalize groups
-            if options[0] in selected_options:
-                cc.img_AgGrid(normalized,title="Normalized Groups",mol_col=name_smiles ,key="normalized_groups")        
-            #----------------------------------------------------------------------------------#
-            # Neutralize when possible
-            if options[1] in selected_options:
- 
-                #st.header('**Neutralized Groups**')
-                #if options[0] in selected_options:
-                cc.img_AgGrid(neutralized,title="Neutralized Groups",mol_col=curate.curated_smiles,key="neutralized_groups")
-            #---------------------------------------------------------------------------------#
             # Remove mixtures and salts
             if options[2] in selected_options:
 
@@ -162,19 +151,7 @@ def app(df,s_state):
                         st.write("**No mixture found**")
                     else:
                         cc.img_AgGrid(only_mixture,title = "Mixture",mol_col=curate.curated_smiles,key="mixture")
-                    #st.header("No mixture")
-                    cc.img_AgGrid(no_mixture,title = "No mixture",mol_col=curate.curated_smiles,key="no_mixture")
-            #---------------------------------------------------------------------------------#
-            #Generate canonical tautomers
-            if options[3] in selected_options:
-                cc.img_AgGrid(canonical_tautomer,title="Canonical tautomer",mol_col=curate.curated_smiles,key="canonical_tautomer")
-            #---------------------------------------------------------------------------------#
-            # Standardize using Chembl pipeline
-            if options[4] in selected_options:
-                cc.img_AgGrid(standardized,title="Chembl Standardization",mol_col=curate.curated_smiles,key="chembl_standardization")
-            
-            #standardized = curate.std_routine(canonical_tautomer,smiles = curate.curated_smiles)
-
+        #---------------------------------------------------------------------------------#
             
         ########################################################################################################################################
         # Download Standardized with Duplicates
@@ -193,7 +170,6 @@ def app(df,s_state):
                 st.write("Percentage of compounds remaining: ",round(100-dups/len(df)*100,2),"%")
                 #st.header("**Final Dataset**")
                 df.drop_duplicates(subset=curate.curated_smiles,keep="first",inplace=True)
-                cc.img_AgGrid(df,title="Final Dataset",key="final_dataset",mol_col=curate.curated_smiles)
                 filedownload(df,"Final Dataset")
             if radio == data_type[0]:
                 continuous = utils.Continuous_Duplicate_Remover(standardized,curate.curated_smiles,name_activity,False,False)

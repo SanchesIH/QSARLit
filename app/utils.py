@@ -9,7 +9,6 @@ from random import randint
 from rdkit import Chem, DataStructs
 from rdkit.Chem import MACCSkeys,Draw
 from rdkit.Chem import AllChem, Descriptors
-from chembl_structure_pipeline import standardizer
 from rdkit.Chem.SaltRemover import SaltRemover
 from rdkit.Chem import inchi as rd_inchi
 from json import JSONEncoder
@@ -18,7 +17,7 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import warnings; warnings.simplefilter('ignore')
-import rdkit.Chem.MolStandardize.rdMolStandardize as rdMolStandardize
+from rdkit.Chem.MolStandardize import rdMolStandardize
 import json
 import re
 import math
@@ -33,29 +32,6 @@ from io import BytesIO
 from PIL import Image
 
 st.session_state["has_run"] = None
-
-def deploy_chembl():
-    import os,subprocess
-    import sys
-    files = os.listdir()
-    #get all installed packages
-    #installed_packages = subprocess.run(["pip", "list"], capture_output=True).stdout.decode("utf-8")
-    installed_packages = [p.name for p in iter_modules()]
-    #check if chembl is installed
-    if 'ChEMBL_Structure_Pipeline' not in files or 'chembl_structure_pipeline' not in installed_packages:
-        has_git = subprocess.call(['git', '--version'])
-        if has_git != 0:
-            st.error("Git is not installed. Please install git and try again.")
-        else:
-            git = subprocess.run(['git','clone','https://github.com/chembl/ChEMBL_Structure_Pipeline.git'], shell=True)
-            if git.returncode != 0:
-                st.error("Error cloning ChEMBL_Structure_Pipeline. Please try again.")
-            else:
-                chbl = subprocess.run(['pip', 'install', './ChEMBL_Structure_Pipeline'], shell=True)
-                if chbl.returncode != 0:
-                    st.error("Error installing ChEMBL_Structure_Pipeline. Please try again.")
-                else: st.write('ChEMBL_Structure_Pipeline installed')
-    else: pass
 
 def persist_dataframe(df,updated_df_key,col_to_delete):
             # drop column from dataframe
@@ -775,34 +751,51 @@ class Curation:
         # df_canonical_tautomer = df.join(canonical_tautomer)
         return df4,df5
 
-    #remove mixtures, kinda sus, but it mostly works
-    def remove_mixture(self,df4 : pd.DataFrame, smiles=None,):
+    def remove_mixture(self, df4: pd.DataFrame, smiles=None):
+        """
+        Splits the DataFrame into two:
+        
+        - df_no_mixtures (df4): Rows without mixtures (SMILES without '.')
+        - df_mixtures (_): Rows with mixtures (SMILES containing '.')
+        
+        Parameters:
+        - df4 (pd.DataFrame): Input DataFrame containing SMILES strings.
+        - smiles (str, optional): Column name containing SMILES strings. If None, determined by is_smiles_passed.
+        
+        Returns:
+        - Tuple[pd.DataFrame, Union[pd.DataFrame, str]]: (df_no_mixtures, df_mixtures or "No mixture")
+        """
+        
+        # Determine the column names for SMILES
         curated_smiles, smiles = self.is_smiles_passed(smiles)
-        mixtureList = []
+        
+        # Initialize list to hold indices of mixtures
         indexDropList_mix = []
-        df5 = df4
-        for index, smile in enumerate (df4[smiles]):
-            for char in smile:
-                if char == '.': #if a salt was not removed, it will be removed here
-                    mixtureList.append(df4.iloc[[index]])
+        
+        # Make a copy of df4 for mixtures
+        df5 = df4.copy()
+        
+        # Iterate over the SMILES column
+        for index, smile in enumerate(df4[smiles]):
+            # Ensure that smile is a string to avoid errors
+            if isinstance(smile, str):
+                if '.' in smile:
                     indexDropList_mix.append(index)
-                    break
-
-
-        if len(indexDropList_mix) == 0:
-            return df4,"No mixture"
+        
+        if not indexDropList_mix:
+            return df4, "No mixture"
         else:
-            #drop mixtures
-            df4.drop(df4.index[indexDropList_mix], inplace = True)
+            # Drop mixtures from df4 to create df_no_mixtures
+            df_no_mixtures = df4.drop(indexDropList_mix).copy()
             
-            df5 = df5.iloc[indexDropList_mix]
-            #mixtures = pd.Series(mixtureList)
-            #mixtures.to_csv("{}/error/mixtures.csv".forma), sep=',', header=True, index=False)     
-            return df4,df5
-    
+            # Select mixtures into df_mixtures from df5
+            df_mixtures = df5.iloc[indexDropList_mix].copy()
+            
+            return df_no_mixtures, df_mixtures
+        
     def neutralize(self,df4 : pd.DataFrame, smiles=None,):
         curated_smiles, smiles = self.is_smiles_passed(smiles)
-        df5 = df4
+        df5 = df4.copy()
         mols_noradical = []
         standAlone_salts = []
         indexDropList_salts = []
@@ -826,23 +819,24 @@ class Curation:
             df4[curated_smiles] = mols_noradical
             return df4,df5 #, salts
 
-    def standardise(self,df4 : pd.DataFrame,  smiles=None):
+    def standardise(self, df4: pd.DataFrame, smiles=None):
         curated_smiles, smiles = self.is_smiles_passed(smiles)
-
-        df5 = df4
         
-        rdMol = [Chem.MolFromSmiles(smile, sanitize = True) for smile in df4[smiles]]
-
-        molBlock = [Chem.MolToMolBlock(mol) for mol in rdMol]
-
-        stdMolBlock = [standardizer.standardize_molblock(mol_block) for mol_block in molBlock]
-
-        molFromMolBlock = [Chem.MolFromMolBlock(std_molblock) for std_molblock in stdMolBlock]
-
-        mol2smiles = [Chem.MolToSmiles(m) for m in molFromMolBlock]
+        # Create a copy of the DataFrame to preserve original data
+        df5 = df4.copy()
         
-        df4[curated_smiles] = mol2smiles
-        return df4,df5
+        # Define a function to standardize SMILES
+        def standardize_smiles(smile):
+            try:
+                standardized_smile = rdMolStandardize.StandardizeSmiles(smile)
+                return standardized_smile
+            except:
+                return None
+        
+        # Apply the standardization function to each SMILES string
+        df4[curated_smiles] = df4[smiles].apply(standardize_smiles)
+        
+        return df4, df5
         
     def std_routine(self, df4 : pd.DataFrame, smiles=None):
         curated_smiles, smiles = self.is_smiles_passed(smiles)

@@ -36,7 +36,7 @@ from sklearn import metrics
 
 import pickle
 
-from rdkit.Chem.Draw import DrawingOptions
+#from rdkit.Chem.Draw import DrawingOptions
 
 import utils
 ########################################################################################################################################

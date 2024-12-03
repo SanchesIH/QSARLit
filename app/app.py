@@ -1,6 +1,6 @@
 import streamlit as st
 from multiapp import MultiApp
-import home, cur, cur_vs, desc, rf, svm, lgbm, vs, maps, rf_re, svm_re, lgbm_re  # import your app modules here
+import home, cur, desc, rf, svm, lgbm, vs, maps, rf_re, svm_re, lgbm_re  # import your app modules here
 import utils
 import pandas as pd
 
@@ -17,7 +17,6 @@ app.add_app("LightGBM - Classification", lgbm.app)
 app.add_app("Random Forest - Regressor", rf_re.app)
 app.add_app("Support Vector Regressor", svm_re.app)
 app.add_app("LightGBM - Regressor", lgbm_re.app)
-app.add_app("Curation for Virtual Screening", cur_vs.app)
 app.add_app("Virtual Screening", vs.app)
 app.add_app("Probability Maps", maps.app)
 
