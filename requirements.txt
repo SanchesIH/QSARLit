@@ -68,7 +68,6 @@ pyparsing
 python-dateutil
 python-decouple
 pytz
-pywin32
 pyyaml
 pyzmq
 rdkit
