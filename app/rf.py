@@ -30,6 +30,10 @@ from skopt import BayesSearchCV
 
 import plotly.graph_objects as go
 
+# Initialize session state variables if they don't exist
+if 'modeling_done' not in st.session_state:
+    st.session_state['modeling_done'] = False
+
 def app(df, s_state):
     ########################################################################################################################################
     # Functions
@@ -166,23 +170,20 @@ def app(df, s_state):
                                                       random_state=parameter_random_state, stratify=y)
 
         if selected_splitting == 'input_own':
-
-            if df is not None:
-                # Select activity column
-                with st.sidebar.header('2. Select column with activity'):
-                    name_activity = st.sidebar.selectbox(
-                        'Select the column with activity (e.g., Active and Inactive that should be 1 and 0, respectively)',
-                        df.columns)
-                    if len(name_activity) > 0:
-                        if name_activity not in df.columns:
-                            st.error(f"The column '{name_activity}' is not in the dataframe.")
-                st.sidebar.write('---')
+            # You need to define df_own and name_activity_ext
+            # Assuming df_own is provided elsewhere in your app
+            if 'df_own' in s_state and 'name_activity_ext' in s_state:
+                df_own = s_state['df_own']
+                name_activity_ext = s_state['name_activity_ext']
 
                 x = df.drop(columns=[name_activity]).values  # All columns except the activity column
                 y = df[name_activity].values  # The activity column
 
                 x_ext = df_own.drop(columns=[name_activity_ext]).values  # All columns except the activity column
                 y_ext = df_own[name_activity_ext].values  # The activity column
+            else:
+                st.error("Please provide the external dataset and activity column name.")
+                return
 
     ########################################################################################################################################
     # Sidebar - Specify parameter settings
@@ -212,11 +213,11 @@ def app(df, s_state):
         # Choose the hyperparameters intervals to be tested
         st.sidebar.subheader('Learning Hyperparameters')
 
+        selected_hyperparameters = {}
+
         if not selected_options:
             st.sidebar.write('Please, select the hyperparameters to be optimized!')
         else:
-            selected_hyperparameters = {}
-
             if 'n_estimators' in selected_options:
                 st.sidebar.write("Value of estimators (n_estimators)")
                 min_n_estimators = st.sidebar.number_input('Min n_estimators', min_value=50, max_value=1000, value=100,
@@ -263,269 +264,309 @@ def app(df, s_state):
     # Modeling
     ########################################################################################################################################
 
-        if st.sidebar.button('Run Modeling'):
+    run_modeling = st.sidebar.button('Run Modeling')
 
-            if not selected_hyperparameters:
-                st.error("Please select at least one hyperparameter to optimize.")
-            else:
-                try:
-                    # Create folds for cross-validation
-                    cv = StratifiedKFold(n_splits=n_splits, shuffle=False, )
+    if run_modeling:
+        if not selected_hyperparameters:
+            st.error("Please select at least one hyperparameter to optimize.")
+        else:
+            try:
+                st.session_state['modeling_done'] = True
+                # Create folds for cross-validation
+                cv = StratifiedKFold(n_splits=n_splits, shuffle=False, )
 
-                    # Run RF Model building - Bayesian hyperparameter search
-                    scorer = make_scorer(geometric_mean_score)
+                # Run RF Model building - Bayesian hyperparameter search
+                scorer = make_scorer(geometric_mean_score)
 
-                    opt_rf = BayesSearchCV(
-                        RandomForestClassifier(),
-                        selected_hyperparameters,
-                        n_iter=parameter_n_iter,  # Number of parameter settings that are sampled
-                        cv=cv,
-                        scoring=scorer,
-                        verbose=0,
-                        refit=True,  # Refit the best estimator with the entire dataset.
-                        random_state=parameter_random_state,
-                        n_jobs=parameter_n_jobs
-                    )
+                opt_rf = BayesSearchCV(
+                    RandomForestClassifier(),
+                    selected_hyperparameters,
+                    n_iter=parameter_n_iter,  # Number of parameter settings that are sampled
+                    cv=cv,
+                    scoring=scorer,
+                    verbose=0,
+                    refit=True,  # Refit the best estimator with the entire dataset.
+                    random_state=parameter_random_state,
+                    n_jobs=parameter_n_jobs
+                )
 
-                    opt_rf.fit(x, y)
+                opt_rf.fit(x, y)
 
-                    st.write("Best parameters: %s" % opt_rf.best_params_)
+                st.write("Best parameters: %s" % opt_rf.best_params_)
 
-                    # k-fold cross-validation
-                    pred_rf, y_experimental, probs_classes, AD_fold, y_pred_ad, y_exp_ad = cros_val(x, y,
-                                                                                                   RandomForestClassifier(
-                                                                                                       **opt_rf.best_params_),
-                                                                                                   cv)
-                    # Statistics k-fold cross-validation
-                    statistics = calc_statistics(y_experimental, pred_rf)
-                    # coverage
-                    coverage = round((len(y_exp_ad) / len(y_experimental)), 2)
+                # k-fold cross-validation
+                pred_rf, y_experimental, probs_classes, AD_fold, y_pred_ad, y_exp_ad = cros_val(x, y,
+                                                                                               RandomForestClassifier(
+                                                                                                   **opt_rf.best_params_),
+                                                                                               cv)
+                # Statistics k-fold cross-validation
+                statistics = calc_statistics(y_experimental, pred_rf)
+                # coverage
+                coverage = round((len(y_exp_ad) / len(y_experimental)), 2)
+
+                # converting calculated metrics into a pandas dataframe to save a xls
+                model_type = "RF"
+
+                result_type = "uncalibrated"
+
+                metrics_rf_uncalibrated = statistics
+                metrics_rf_uncalibrated['model'] = model_type
+                metrics_rf_uncalibrated['result_type'] = result_type
+                metrics_rf_uncalibrated['coverage'] = coverage
+
+                st.header('**Metrics of uncalibrated model on the K-fold cross-validation**')
+
+                # Bar chart Statistics k-fold cross-validation
+
+                metrics_rf_uncalibrated_graph = metrics_rf_uncalibrated.filter(
+                    items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
+                           "coverage"])
+
+                x_metrics = metrics_rf_uncalibrated_graph.columns
+                y_metrics = metrics_rf_uncalibrated_graph.loc[0].values
+
+                colors = ["red", "orange", "green", 'yellow', "pink", 'blue', "purple", "cyan", "teal"]
+
+                fig = go.Figure(data=[go.Bar(
+                    x=x_metrics, y=y_metrics,
+                    text=y_metrics,
+                    textposition='auto',
+                    marker_color=colors
+                )])
+
+                st.plotly_chart(fig)
+
+                ########################################################################################################################################
+                # External set uncalibrated
+                ########################################################################################################################################
+                if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+
+                    # Predict probabilities for the external set
+                    probs_external = opt_rf.predict_proba(x_ext)
+                    # Making classes
+                    pred_rf_ext = (probs_external[:, 1] > 0.5).astype(int)
+                    # Statistics external set uncalibrated
+                    statistics_ext = calc_statistics(y_ext, pred_rf_ext)
 
                     # converting calculated metrics into a pandas dataframe to save a xls
                     model_type = "RF"
 
-                    result_type = "uncalibrated"
+                    result_type = "uncalibrated_external_set"
 
-                    metrics_rf_uncalibrated = statistics
-                    metrics_rf_uncalibrated['model'] = model_type
-                    metrics_rf_uncalibrated['result_type'] = result_type
-                    metrics_rf_uncalibrated['coverage'] = coverage
+                    metrics_rf_external_set_uncalibrated = statistics_ext
+                    metrics_rf_external_set_uncalibrated['model'] = model_type
+                    metrics_rf_external_set_uncalibrated['result_type'] = result_type
 
-                    st.header('**Metrics of uncalibrated model on the K-fold cross-validation**')
+                    st.header('**Metrics of uncalibrated model on the external set**')
+                    # Bar chart Statistics external set
 
-                    # Bar chart Statistics k-fold cross-validation
-
-                    metrics_rf_uncalibrated_graph = metrics_rf_uncalibrated.filter(
+                    metrics_rf_external_set_uncalibrated_graph = metrics_rf_external_set_uncalibrated.filter(
                         items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
                                "coverage"])
 
-                    x_metrics = metrics_rf_uncalibrated_graph.columns
-                    y_metrics = metrics_rf_uncalibrated_graph.loc[0].values
+                    x_metrics_ext = metrics_rf_external_set_uncalibrated_graph.columns
+                    y_metrics_ext = metrics_rf_external_set_uncalibrated_graph.loc[0].values
 
-                    colors = ["red", "orange", "green", 'yellow', "pink", 'blue', "purple", "cyan", "teal"]
+                    colors = ["red", "orange", "green", 'yellow', "pink", "blue", "purple", "cyan", "teal"]
 
                     fig = go.Figure(data=[go.Bar(
-                        x=x_metrics, y=y_metrics,
-                        text=y_metrics,
+                        x=x_metrics_ext, y=y_metrics_ext,
+                        text=y_metrics_ext,
                         textposition='auto',
                         marker_color=colors
                     )])
 
                     st.plotly_chart(fig)
 
-                    ########################################################################################################################################
-                    # External set uncalibrated
-                    ########################################################################################################################################
-                    if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+                ########################################################################################################################################
+                # Model Calibration
+                ########################################################################################################################################
+                # Check model calibration
+                # keep probabilities for the positive outcome only
+                probs = probs_classes[:, 1]
+                # reliability diagram
+                fop, mpv = calibration_curve(y_experimental, probs, n_bins=10)
+                # plot perfectly calibrated
+                fig = plt.figure()
+                plt.plot([0, 1], [0, 1], linestyle='--')
+                # plot model reliability
+                plt.plot(mpv, fop, marker='.')
 
-                        # Predict probabilities for the external set
-                        probs_external = opt_rf.predict_proba(x_ext)
-                        # Making classes
-                        pred_rf_ext = (probs_external[:, 1] > 0.5).astype(int)
-                        # Statistics external set uncalibrated
-                        statistics_ext = calc_statistics(y_ext, pred_rf_ext)
+                st.header('**Check model calibration**')
+                st.pyplot(fig)
 
-                        # converting calculated metrics into a pandas dataframe to save a xls
-                        model_type = "RF"
+                # Use ROC-Curve and Gmean to select a threshold for calibration
+                # keep probabilities for the positive outcome only
+                yhat = probs_classes[:, 1]
+                # calculate roc curves
+                fpr, tpr, thresholds = roc_curve(y_experimental, yhat)
+                # calculate the g-mean for each threshold
+                gmeans = sqrt(tpr * (1 - fpr))
+                # locate the index of the largest g-mean
+                ix = argmax(gmeans)
+                # plot the roc curve for the model
+                fig = plt.figure()
+                plt.plot([0, 1], [0, 1], linestyle='--', label='No Skill')
+                plt.plot(fpr, tpr, marker='.', label='RF')
+                plt.scatter(fpr[ix], tpr[ix], marker='o', color='black', label='Best')
+                # axis labels
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.legend()
 
-                        result_type = "uncalibrated_external_set"
+                st.header('**Use ROC-Curve and G-Mean to select a threshold for calibration**')
 
-                        metrics_rf_external_set_uncalibrated = statistics_ext
-                        metrics_rf_external_set_uncalibrated['model'] = model_type
-                        metrics_rf_external_set_uncalibrated['result_type'] = result_type
+                st.pyplot(fig)
 
-                        st.header('**Metrics of uncalibrated model on the external set**')
-                        # Bar chart Statistics external set
+                st.write('Best Threshold= %.2f, G-Mean= %.2f' % (round(thresholds[ix], 2), round(gmeans[ix], 2)))
 
-                        metrics_rf_external_set_uncalibrated_graph = metrics_rf_external_set_uncalibrated.filter(
-                            items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
-                                   "coverage"])
+                # Record the threshold in a variable
+                threshold_roc = round(thresholds[ix], 2)
 
-                        x_metrics_ext = metrics_rf_external_set_uncalibrated_graph.columns
-                        y_metrics_ext = metrics_rf_external_set_uncalibrated_graph.loc[0].values
+                # Select the best threshold to distinguish the classes
+                pred_rf = (probs_classes[:, 1] > threshold_roc).astype(int)
 
-                        colors = ["red", "orange", "green", 'yellow', "pink", 'blue', "purple", "cyan", "teal"]
+                # Statistics k-fold cross-validation calibrated
+                statistics = calc_statistics(y_experimental, pred_rf)
 
-                        fig = go.Figure(data=[go.Bar(
-                            x=x_metrics_ext, y=y_metrics_ext,
-                            text=y_metrics_ext,
-                            textposition='auto',
-                            marker_color=colors
-                        )])
+                # Coverage
+                coverage = round((len(y_exp_ad) / len(y_experimental)), 2)
 
-                        st.plotly_chart(fig)
+                # converting calculated metrics into a pandas dataframe to save a xls
+                model_type = "RF"
 
-                    ########################################################################################################################################
-                    # Model Calibration
-                    ########################################################################################################################################
-                    # Check model calibration
-                    # keep probabilities for the positive outcome only
-                    probs = probs_classes[:, 1]
-                    # reliability diagram
-                    fop, mpv = calibration_curve(y_experimental, probs, n_bins=10)
-                    # plot perfectly calibrated
-                    fig = plt.figure()
-                    plt.plot([0, 1], [0, 1], linestyle='--')
-                    # plot model reliability
-                    plt.plot(mpv, fop, marker='.')
+                result_type = "calibrated"
 
-                    st.header('**Check model calibration**')
-                    st.pyplot(fig)
+                metrics_rf_calibrated = statistics
+                metrics_rf_calibrated['model'] = model_type
+                metrics_rf_calibrated['result_type'] = result_type
+                metrics_rf_calibrated['calibration_threshold'] = threshold_roc
+                metrics_rf_calibrated['coverage'] = coverage
 
-                    # Use ROC-Curve and Gmean to select a threshold for calibration
-                    # keep probabilities for the positive outcome only
-                    yhat = probs_classes[:, 1]
-                    # calculate roc curves
-                    fpr, tpr, thresholds = roc_curve(y_experimental, yhat)
-                    # calculate the g-mean for each threshold
-                    gmeans = sqrt(tpr * (1 - fpr))
-                    # locate the index of the largest g-mean
-                    ix = argmax(gmeans)
-                    # plot the roc curve for the model
-                    fig = plt.figure()
-                    plt.plot([0, 1], [0, 1], linestyle='--', label='No Skill')
-                    plt.plot(fpr, tpr, marker='.', label='RF')
-                    plt.scatter(fpr[ix], tpr[ix], marker='o', color='black', label='Best')
-                    # axis labels
-                    plt.xlabel('False Positive Rate')
-                    plt.ylabel('True Positive Rate')
-                    plt.legend()
+                st.header('**Metrics of calibrated model on the K-fold cross-validation**')
 
-                    st.header('**Use ROC-Curve and G-Mean to select a threshold for calibration**')
+                # Bar chart Statistics k-fold cross-validation calibrated
 
-                    st.pyplot(fig)
+                metrics_rf_calibrated_graph = metrics_rf_calibrated.filter(
+                    items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
+                           "coverage"])
+                x_metrics_cal = metrics_rf_calibrated_graph.columns
+                y_metrics_cal = metrics_rf_calibrated_graph.loc[0].values
 
-                    st.write('Best Threshold= %.2f, G-Mean= %.2f' % (round(thresholds[ix], 2), round(gmeans[ix], 2)))
+                colors = ["red", "orange", "green", 'yellow', "pink", "blue", "purple", "cyan", "teal"]
 
-                    # Record the threshold in a variable
-                    threshold_roc = round(thresholds[ix], 2)
+                fig = go.Figure(data=[go.Bar(
+                    x=x_metrics_cal, y=y_metrics_cal,
+                    text=y_metrics_cal,
+                    textposition='auto',
+                    marker_color=colors
+                )])
 
-                    # Select the best threshold to distinguish the classes
-                    pred_rf = (probs_classes[:, 1] > threshold_roc).astype(int)
+                st.plotly_chart(fig)
 
-                    # Statistics k-fold cross-validation calibrated
-                    statistics = calc_statistics(y_experimental, pred_rf)
+                ########################################################################################################################################
+                # External set calibrated
+                ########################################################################################################################################
+                if selected_splitting == 'split_original' or selected_splitting == 'input_own':
 
-                    # Coverage
-                    coverage = round((len(y_exp_ad) / len(y_experimental)), 2)
+                    # Predict probabilities for the external set
+                    probs_external = opt_rf.predict_proba(x_ext)
+                    # Making classes
+                    pred_rf_ext = (probs_external[:, 1] > threshold_roc).astype(int)
+                    # Statistics external set calibrated
+                    statistics_ext = calc_statistics(y_ext, pred_rf_ext)
 
                     # converting calculated metrics into a pandas dataframe to save a xls
                     model_type = "RF"
 
-                    result_type = "calibrated"
+                    result_type = "calibrated_external_set"
 
-                    metrics_rf_calibrated = statistics
-                    metrics_rf_calibrated['model'] = model_type
-                    metrics_rf_calibrated['result_type'] = result_type
-                    metrics_rf_calibrated['calibration_threshold'] = threshold_roc
-                    metrics_rf_calibrated['coverage'] = coverage
+                    metrics_rf_external_set_calibrated = statistics_ext
+                    metrics_rf_external_set_calibrated['model'] = model_type
+                    metrics_rf_external_set_calibrated['result_type'] = result_type
 
-                    st.header('**Metrics of calibrated model on the K-fold cross-validation**')
+                    st.header('**Metrics of calibrated model on the external set**')
+                    # Bar chart Statistics external set
 
-                    # Bar chart Statistics k-fold cross-validation calibrated
-
-                    metrics_rf_calibrated_graph = metrics_rf_calibrated.filter(
+                    metrics_rf_external_set_calibrated_graph = metrics_rf_external_set_calibrated.filter(
                         items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
                                "coverage"])
-                    x_metrics_cal = metrics_rf_calibrated_graph.columns
-                    y_metrics_cal = metrics_rf_calibrated_graph.loc[0].values
 
-                    colors = ["red", "orange", "green", 'yellow', "pink", 'blue', "purple", "cyan", "teal"]
+                    x_metrics_ext_cal = metrics_rf_external_set_calibrated_graph.columns
+                    y_metrics_ext_cal = metrics_rf_external_set_calibrated_graph.loc[0].values
+
+                    colors = ["red", "orange", "green", 'yellow', "pink", "blue", "purple", "cyan", "teal"]
 
                     fig = go.Figure(data=[go.Bar(
-                        x=x_metrics_cal, y=y_metrics_cal,
-                        text=y_metrics_cal,
+                        x=x_metrics_ext_cal, y=y_metrics_ext_cal,
+                        text=y_metrics_ext_cal,
                         textposition='auto',
                         marker_color=colors
                     )])
 
                     st.plotly_chart(fig)
 
-                    ########################################################################################################################################
-                    # External set calibrated
-                    ########################################################################################################################################
-                    if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+                ########################################################################################################################################
+                # Compare models
+                ########################################################################################################################################
 
-                        # Predict probabilities for the external set
-                        probs_external = opt_rf.predict_proba(x_ext)
-                        # Making classes
-                        pred_rf_ext = (probs_external[:, 1] > threshold_roc).astype(int)
-                        # Statistics external set calibrated
-                        statistics_ext = calc_statistics(y_ext, pred_rf_ext)
+                # Only K-fold
+                st.header('**Compare metrics of calibrated and uncalibrated models on the K-fold cross-validation**')
 
-                        # converting calculated metrics into a pandas dataframe to save a xls
-                        model_type = "RF"
+                metrics_rf_uncalibrated_graph = metrics_rf_uncalibrated.filter(
+                    items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
+                metrics_rf_calibrated_graph = metrics_rf_calibrated.filter(
+                    items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
 
-                        result_type = "calibrated_external_set"
+                fig = go.Figure()
 
-                        metrics_rf_external_set_calibrated = statistics_ext
-                        metrics_rf_external_set_calibrated['model'] = model_type
-                        metrics_rf_external_set_calibrated['result_type'] = result_type
+                fig.add_trace(go.Scatterpolar(
+                    r=metrics_rf_uncalibrated_graph.loc[0].values,
+                    theta=metrics_rf_uncalibrated_graph.columns,
+                    fill='toself',
+                    name='Uncalibrated'
+                ))
+                fig.add_trace(go.Scatterpolar(
+                    r=metrics_rf_calibrated_graph.loc[0].values,
+                    theta=metrics_rf_uncalibrated_graph.columns,
+                    fill='toself',
+                    name='Calibrated'
+                ))
 
-                        st.header('**Metrics of calibrated model on the external set**')
-                        # Bar chart Statistics external set
+                fig.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 1]
+                        )),
+                    showlegend=True
+                )
 
-                        metrics_rf_external_set_calibrated_graph = metrics_rf_external_set_calibrated.filter(
-                            items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
-                                   "coverage"])
+                st.plotly_chart(fig)
 
-                        x_metrics_ext_cal = metrics_rf_external_set_calibrated_graph.columns
-                        y_metrics_ext_cal = metrics_rf_external_set_calibrated_graph.loc[0].values
+                # External set
 
-                        colors = ["red", "orange", "green", 'yellow', "pink", 'blue', "purple", "cyan", "teal"]
+                if selected_splitting == 'split_original' or selected_splitting == 'input_own':
 
-                        fig = go.Figure(data=[go.Bar(
-                            x=x_metrics_ext_cal, y=y_metrics_ext_cal,
-                            text=y_metrics_ext_cal,
-                            textposition='auto',
-                            marker_color=colors
-                        )])
+                    st.header(
+                        '**Compare metrics of calibrated and uncalibrated models on the external set**')
 
-                        st.plotly_chart(fig)
-
-                    ########################################################################################################################################
-                    # Compare models
-                    ########################################################################################################################################
-
-                    # Only K-fold
-                    st.header('**Compare metrics of calibrated and uncalibrated models on the K-fold cross-validation**')
-
-                    metrics_rf_uncalibrated_graph = metrics_rf_uncalibrated.filter(
+                    metrics_rf_external_set_uncalibrated_graph = metrics_rf_external_set_uncalibrated.filter(
                         items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
-                    metrics_rf_calibrated_graph = metrics_rf_calibrated.filter(
+                    metrics_rf_external_set_calibrated_graph = metrics_rf_external_set_calibrated.filter(
                         items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
 
                     fig = go.Figure()
 
                     fig.add_trace(go.Scatterpolar(
-                        r=metrics_rf_uncalibrated_graph.loc[0].values,
-                        theta=metrics_rf_uncalibrated_graph.columns,
+                        r=metrics_rf_external_set_uncalibrated_graph.loc[0].values,
+                        theta=metrics_rf_external_set_uncalibrated_graph.columns,
                         fill='toself',
                         name='Uncalibrated'
                     ))
                     fig.add_trace(go.Scatterpolar(
-                        r=metrics_rf_calibrated_graph.loc[0].values,
-                        theta=metrics_rf_uncalibrated_graph.columns,
+                        r=metrics_rf_external_set_calibrated_graph.loc[0].values,
+                        theta=metrics_rf_external_set_uncalibrated_graph.columns,
                         fill='toself',
                         name='Calibrated'
                     ))
@@ -541,77 +582,145 @@ def app(df, s_state):
 
                     st.plotly_chart(fig)
 
-                    # External set
+                ########################################################################################################################################
+                # Download files
+                ########################################################################################################################################
 
-                    if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+                st.header('**Download files**')
 
-                        st.header(
-                            '**Compare metrics of calibrated and uncalibrated models on the external set**')
+                if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+                    frames = [metrics_rf_uncalibrated, metrics_rf_calibrated,
+                              metrics_rf_external_set_uncalibrated, metrics_rf_external_set_calibrated]
 
-                        metrics_rf_external_set_uncalibrated_graph = metrics_rf_external_set_uncalibrated.filter(
-                            items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
-                        metrics_rf_external_set_calibrated_graph = metrics_rf_external_set_calibrated.filter(
-                            items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC"])
+                else:
+                    frames = [metrics_rf_uncalibrated, metrics_rf_calibrated, ]
 
-                        fig = go.Figure()
+                result = pd.concat(frames)
 
-                        fig.add_trace(go.Scatterpolar(
-                            r=metrics_rf_external_set_uncalibrated_graph.loc[0].values,
-                            theta=metrics_rf_external_set_uncalibrated_graph.columns,
-                            fill='toself',
-                            name='Uncalibrated'
-                        ))
-                        fig.add_trace(go.Scatterpolar(
-                            r=metrics_rf_external_set_calibrated_graph.loc[0].values,
-                            theta=metrics_rf_external_set_uncalibrated_graph.columns,
-                            fill='toself',
-                            name='Calibrated'
-                        ))
+                result = result.round(2)
 
-                        fig.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, 1]
-                                )),
-                            showlegend=True
-                        )
+                # File download
+                def filedownload(df):
+                    csv = df.to_csv(index=False)
+                    b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
+                    href = f'<a href="data:file/csv;base64,{b64}" download="metrics_rf.csv">Download CSV File - metrics</a>'
+                    st.markdown(href, unsafe_allow_html=True)
 
-                        st.plotly_chart(fig)
+                filedownload(result)
 
-                    ########################################################################################################################################
-                    # Download files
-                    ########################################################################################################################################
+                def download_model(model):
+                    output_model = pickle.dumps(model)
+                    b64 = base64.b64encode(output_model).decode()
+                    href = f'<a href="data:file/output_model;base64,{b64}" download="model_rf.pkl">Download generated model (PKL File)</a>'
+                    st.markdown(href, unsafe_allow_html=True)
 
-                    st.header('**Download files**')
+                download_model(opt_rf)
 
-                    if selected_splitting == 'split_original' or selected_splitting == 'input_own':
-                        frames = [metrics_rf_uncalibrated, metrics_rf_calibrated,
-                                  metrics_rf_external_set_uncalibrated, metrics_rf_external_set_calibrated]
+                # Store variables in session_state
+                st.session_state['opt_rf'] = opt_rf
+                st.session_state['metrics_rf_uncalibrated'] = metrics_rf_uncalibrated
+                st.session_state['metrics_rf_calibrated'] = metrics_rf_calibrated
+                if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+                    st.session_state['metrics_rf_external_set_uncalibrated'] = metrics_rf_external_set_uncalibrated
+                    st.session_state['metrics_rf_external_set_calibrated'] = metrics_rf_external_set_calibrated
 
-                    else:
-                        frames = [metrics_rf_uncalibrated, metrics_rf_calibrated, ]
+                st.session_state['threshold_roc'] = threshold_roc
 
-                    result = pd.concat(frames)
+            except Exception as e:
+                st.error(f"An error occurred during modeling: {e}")
 
-                    result = result.round(2)
+    elif st.session_state['modeling_done']:
+        # If modeling is already done, display results without rerunning computations
+        st.write("Modeling has already been performed. Displaying results...")
 
-                    # File download
-                    def filedownload(df):
-                        csv = df.to_csv(index=False)
-                        b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
-                        href = f'<a href="data:file/csv;base64,{b64}" download="metrics_rf.csv">Download CSV File - metrics</a>'
-                        st.markdown(href, unsafe_allow_html=True)
+        opt_rf = st.session_state['opt_rf']
+        metrics_rf_uncalibrated = st.session_state['metrics_rf_uncalibrated']
+        metrics_rf_calibrated = st.session_state['metrics_rf_calibrated']
+        threshold_roc = st.session_state['threshold_roc']
 
-                    filedownload(result)
+        st.write("Best parameters: %s" % opt_rf.best_params_)
 
-                    def download_model(model):
-                        output_model = pickle.dumps(model)
-                        b64 = base64.b64encode(output_model).decode()
-                        href = f'<a href="data:file/output_model;base64,{b64}" download="model_rf.pkl">Download generated model (PKL File)</a>'
-                        st.markdown(href, unsafe_allow_html=True)
+        st.header('**Metrics of uncalibrated model on the K-fold cross-validation**')
 
-                    download_model(opt_rf)
+        metrics_rf_uncalibrated_graph = metrics_rf_uncalibrated.filter(
+            items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
+                   "coverage"])
 
-                except Exception as e:
-                    st.error(f"An error occurred during modeling: {e}")
+        x_metrics = metrics_rf_uncalibrated_graph.columns
+        y_metrics = metrics_rf_uncalibrated_graph.loc[0].values
+
+        colors = ["red", "orange", "green", 'yellow', "pink", "blue", "purple", "cyan", "teal"]
+
+        fig = go.Figure(data=[go.Bar(
+            x=x_metrics, y=y_metrics,
+            text=y_metrics,
+            textposition='auto',
+            marker_color=colors
+        )])
+
+        st.plotly_chart(fig)
+
+        # Display other results similarly
+
+        # If external set was used
+        if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+            metrics_rf_external_set_uncalibrated = st.session_state['metrics_rf_external_set_uncalibrated']
+            metrics_rf_external_set_calibrated = st.session_state['metrics_rf_external_set_calibrated']
+
+            st.header('**Metrics of uncalibrated model on the external set**')
+
+            metrics_rf_external_set_uncalibrated_graph = metrics_rf_external_set_uncalibrated.filter(
+                items=['Bal-acc', "Sensitivity", "Specificity", "PPV", "NPV", "Kappa", "MCC", "AUC",
+                       "coverage"])
+
+            x_metrics_ext = metrics_rf_external_set_uncalibrated_graph.columns
+            y_metrics_ext = metrics_rf_external_set_uncalibrated_graph.loc[0].values
+
+            colors = ["red", "orange", "green", 'yellow', "pink", "blue", "purple", "cyan", "teal"]
+
+            fig = go.Figure(data=[go.Bar(
+                x=x_metrics_ext, y=y_metrics_ext,
+                text=y_metrics_ext,
+                textposition='auto',
+                marker_color=colors
+            )])
+
+            st.plotly_chart(fig)
+
+        # Similarly display calibrated metrics and comparison plots
+
+        # Download files
+        st.header('**Download files**')
+
+        if selected_splitting == 'split_original' or selected_splitting == 'input_own':
+            frames = [metrics_rf_uncalibrated, metrics_rf_calibrated,
+                      metrics_rf_external_set_uncalibrated, metrics_rf_external_set_calibrated]
+        else:
+            frames = [metrics_rf_uncalibrated, metrics_rf_calibrated, ]
+
+        result = pd.concat(frames)
+
+        result = result.round(2)
+
+        # File download
+        def filedownload(df):
+            csv = df.to_csv(index=False)
+            b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
+            href = f'<a href="data:file/csv;base64,{b64}" download="metrics_rf.csv">Download CSV File - metrics</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
+        filedownload(result)
+
+        def download_model(model):
+            output_model = pickle.dumps(model)
+            b64 = base64.b64encode(output_model).decode()
+            href = f'<a href="data:file/output_model;base64,{b64}" download="model_rf.pkl">Download generated model (PKL File)</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
+        download_model(opt_rf)
+
+    else:
+        st.write("Click 'Run Modeling' to start the modeling process.")
+
+# Call the app function
+# app(df, s_state)
